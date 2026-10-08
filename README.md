@@ -34,7 +34,7 @@ MAX_FILE_MB=50
 ## Quick start
 
 ```bash
-npm ci
+npm install --omit=dev
 cp .env.example .env
 npm start
 ```
@@ -52,7 +52,7 @@ Folder upload dan `.env` tidak masuk Git.
 ```bash
 cd /home/aru/web/qrsign.aruraharja.co.id/nodeapp
 git pull
-npm ci --omit=dev
+npm install --omit=dev
 pm2 restart qrsign --update-env
 ```
 
