@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>QRsign — Verifikasi Dokumen</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="wrap narrow">
+    <section class="hero verify-hero">
+      <div class="eyebrow">QRSIGN · DOCUMENT AUTHENTICITY CHECK</div>
+      <h1>Verifikasi Dokumen</h1>
+      <p>Pastikan dokumen yang Anda terima sama persis dengan file resmi yang tercatat.</p>
+    </section>
+
+    <section class="card" id="loadingCard"><p>Memuat data verifikasi…</p></section>
+
+    <section class="card" id="docCard" hidden>
+      <div class="statusline"><div id="statusBadge" class="badge"></div><div id="statusText"></div></div>
+      <h2 id="title"></h2>
+      <div class="meta">
+        <div><span>Document ID</span><strong id="id"></strong></div>
+        <div><span>Nomor Dokumen</span><strong id="number">—</strong></div>
+        <div><span>Penerbit</span><strong id="issuer">—</strong></div>
+        <div><span>Finalisasi</span><strong id="finalized">—</strong></div>
+      </div>
+      <p id="description" class="desc"></p>
+
+      <div id="finalPanel" hidden>
+        <div class="hashbox">
+          <span>SHA-256 resmi</span>
+          <code id="hash"></code>
+        </div>
+        <div class="actions">
+          <a id="officialFile" class="button" href="#">Download File Resmi</a>
+        </div>
+
+        <hr>
+        <h3>Cek file yang Anda punya</h3>
+        <p class="small">File diproses langsung di browser. File Anda tidak perlu di-upload ke server untuk pengecekan hash.</p>
+        <label class="filecheck">Pilih file untuk dibandingkan<input id="candidateFile" type="file"></label>
+        <div id="compareResult" class="compare" hidden></div>
+      </div>
+
+      <div id="draftPanel" class="notice warn" hidden>Record ada, tetapi file final belum diunggah. Dokumen belum dapat dianggap final.</div>
+      <div id="revokedPanel" class="notice bad" hidden><strong>Dokumen dicabut.</strong><div id="revokeReason"></div></div>
+    </section>
+
+    <section class="card mini">
+      <strong>Catatan:</strong> sistem ini adalah verifikasi integritas dokumen berbasis hash, bukan tanda tangan elektronik tersertifikasi. Sistem membuktikan file cocok dengan file yang tersimpan di server verifikasi, bukan identitas penandatangan secara hukum.
+    </section>
+  </main>
+<script src="/verify.js"></script>
+</body>
+</html>
