@@ -21,16 +21,19 @@ if (process.env.NODE_ENV === 'production' && ADMIN_KEY === 'change-me') {
 const ROOT = __dirname;
 const DATA_FILE = path.join(ROOT, 'data', 'documents.json');
 const UPLOAD_DIR = path.join(ROOT, 'uploads');
+const CHECK_TMP_DIR = path.join(ROOT, 'tmp', 'checks');
+const PUBLIC_DIR = path.join(ROOT, 'public');
 
 fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(CHECK_TMP_DIR, { recursive: true });
 if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]');
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(ROOT, 'public')));
+app.use(express.static(PUBLIC_DIR));
 
 function safeText(value, max = 300) {
   return String(value || '').trim().slice(0, max);
@@ -68,12 +71,41 @@ async function writeDb(data) {
   await fsp.rename(tmp, DATA_FILE);
 }
 
+function publicDocument(doc) {
+  return {
+    id: doc.id,
+    title: doc.title,
+    documentNumber: doc.documentNumber || '',
+    issuer: doc.issuer || '',
+    description: doc.description || '',
+    status: doc.status,
+    verificationUrl: doc.verificationUrl,
+    sha256: doc.sha256 || null,
+    createdAt: doc.createdAt,
+    finalizedAt: doc.finalizedAt || null,
+    revokedAt: doc.revokedAt || null,
+    revokeReason: doc.revokeReason || null,
+    file: doc.file ? {
+      originalName: doc.file.originalName,
+      mimeType: doc.file.mimeType,
+      size: doc.file.size
+    } : null
+  };
+}
+
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'] || req.body?.adminKey;
   if (!key || key !== ADMIN_KEY) {
     return res.status(401).json({ ok: false, message: 'Admin key salah.' });
   }
   next();
+}
+
+const allowedExtensions = new Set(['.pdf', '.ppt', '.pptx', '.doc', '.docx', '.xls', '.xlsx', '.zip']);
+function documentFileFilter(_, file, cb) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  if (!allowedExtensions.has(ext)) return cb(new Error('Tipe file tidak didukung.'));
+  cb(null, true);
 }
 
 const storage = multer.diskStorage({
@@ -87,12 +119,21 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: MAX_FILE_MB * 1024 * 1024 },
-  fileFilter: (_, file, cb) => {
-    const allowed = new Set(['.pdf', '.ppt', '.pptx', '.doc', '.docx', '.xls', '.xlsx', '.zip']);
+  fileFilter: documentFileFilter
+});
+
+const checkStorage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, CHECK_TMP_DIR),
+  filename: (_, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
-    if (!allowed.has(ext)) return cb(new Error('Tipe file tidak didukung.'));
-    cb(null, true);
+    cb(null, `check-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
   }
+});
+
+const checkUpload = multer({
+  storage: checkStorage,
+  limits: { fileSize: MAX_FILE_MB * 1024 * 1024 },
+  fileFilter: documentFileFilter
 });
 
 async function sha256File(filePath) {
@@ -105,8 +146,46 @@ async function sha256File(filePath) {
   });
 }
 
+async function makeBrandedQrSvg(text) {
+  const raw = await QRCode.toString(text, {
+    type: 'svg',
+    margin: 2,
+    errorCorrectionLevel: 'H',
+    color: { dark: '#082a63', light: '#ffffff' }
+  });
+
+  const match = raw.match(/viewBox="0 0 ([0-9.]+) ([0-9.]+)"/);
+  const side = match ? Number(match[1]) : 45;
+  const box = side * 0.265;
+  const logo = side * 0.205;
+  const boxX = (side - box) / 2;
+  const boxY = (side - box) / 2;
+  const cx = side / 2;
+  const cy = side / 2;
+  const petal = logo * 0.42;
+  const gap = logo * 0.035;
+  const r = petal * 0.42;
+  const left = cx - gap - petal;
+  const right = cx + gap;
+  const top = cy - gap - petal;
+  const bottom = cy + gap;
+  const overlay = `
+    <rect x="${boxX}" y="${boxY}" width="${box}" height="${box}" rx="${side * 0.035}" fill="#ffffff" stroke="#e5e7eb" stroke-width="${side * 0.012}"/>
+    <rect x="${left}" y="${top}" width="${petal}" height="${petal}" rx="${r}" fill="#13c7e8"/>
+    <rect x="${left}" y="${bottom}" width="${petal}" height="${petal}" rx="${r}" fill="#08aee0"/>
+    <rect x="${right}" y="${top}" width="${petal}" height="${petal}" rx="${r}" fill="#082a63"/>
+    <rect x="${right}" y="${bottom}" width="${petal}" height="${petal}" rx="${r}" fill="#0b3b82"/>
+  `;
+
+  return raw.replace('</svg>', `${overlay}</svg>`);
+}
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'QRsign', time: new Date().toISOString() });
+});
+
+app.get('/check', (_req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'check.html'));
 });
 
 app.post('/api/documents', requireAdmin, async (req, res) => {
@@ -136,7 +215,11 @@ app.post('/api/documents', requireAdmin, async (req, res) => {
 
   docs.unshift(doc);
   await writeDb(docs);
-  res.json({ ok: true, document: doc, qrUrl: `${BASE_URL}/qr/${encodeURIComponent(id)}.png` });
+  res.json({
+    ok: true,
+    document: publicDocument(doc),
+    qrUrl: `${BASE_URL}/qr/${encodeURIComponent(id)}.svg`
+  });
 });
 
 app.post('/api/documents/:id/finalize', requireAdmin, upload.single('file'), async (req, res) => {
@@ -170,10 +253,47 @@ app.post('/api/documents/:id/finalize', requireAdmin, upload.single('file'), asy
     docs[idx].finalizedAt = new Date().toISOString();
     await writeDb(docs);
 
-    res.json({ ok: true, document: docs[idx] });
+    res.json({ ok: true, document: publicDocument(docs[idx]) });
   } catch (err) {
     if (req.file?.path) await fsp.unlink(req.file.path).catch(() => {});
     res.status(500).json({ ok: false, message: err.message || 'Gagal finalisasi.' });
+  }
+});
+
+app.post('/api/check-file', checkUpload.single('file'), async (req, res) => {
+  let tempPath = req.file?.path;
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, message: 'Pilih dokumen yang ingin dicek.' });
+
+    const uploadedMeta = {
+      name: cleanFileName(req.file.originalname),
+      size: req.file.size,
+      mimeType: req.file.mimetype
+    };
+
+    const hash = await sha256File(tempPath);
+
+    // File pengecekan hanya bersifat sementara. Hapus segera setelah hash selesai dihitung.
+    await fsp.unlink(tempPath).catch(() => {});
+    tempPath = null;
+
+    const docs = await readDb();
+    const matches = docs
+      .filter(d => d.sha256 && String(d.sha256).toLowerCase() === hash.toLowerCase())
+      .map(publicDocument);
+
+    res.json({
+      ok: true,
+      hash,
+      found: matches.length > 0,
+      matchedCount: matches.length,
+      uploadedFile: uploadedMeta,
+      temporaryUploadDeleted: true,
+      documents: matches
+    });
+  } catch (err) {
+    if (tempPath) await fsp.unlink(tempPath).catch(() => {});
+    res.status(500).json({ ok: false, message: err.message || 'Gagal memeriksa dokumen.' });
   }
 });
 
@@ -185,16 +305,32 @@ app.post('/api/documents/:id/revoke', requireAdmin, async (req, res) => {
   docs[idx].revokedAt = new Date().toISOString();
   docs[idx].revokeReason = safeText(req.body.reason, 300) || 'Dokumen dicabut oleh administrator.';
   await writeDb(docs);
-  res.json({ ok: true, document: docs[idx] });
+  res.json({ ok: true, document: publicDocument(docs[idx]) });
 });
 
 app.get('/api/documents/:id', async (req, res) => {
   const docs = await readDb();
   const doc = docs.find(d => d.id === req.params.id);
   if (!doc) return res.status(404).json({ ok: false, message: 'Dokumen tidak ditemukan.' });
-  res.json({ ok: true, document: doc });
+  res.json({ ok: true, document: publicDocument(doc) });
 });
 
+app.get('/qr/:id.svg', async (req, res) => {
+  const docs = await readDb();
+  const doc = docs.find(d => d.id === req.params.id);
+  if (!doc) return res.status(404).send('Not found');
+  try {
+    const svg = await makeBrandedQrSvg(doc.verificationUrl);
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Content-Disposition', `inline; filename="QR-${doc.id}-ARU.svg"`);
+    res.send(svg);
+  } catch {
+    res.status(500).send('QR generation failed');
+  }
+});
+
+// Legacy PNG tetap tersedia untuk kompatibilitas, namun UI baru memakai QR SVG berlogo ARU.
 app.get('/qr/:id.png', async (req, res) => {
   const docs = await readDb();
   const doc = docs.find(d => d.id === req.params.id);
@@ -203,7 +339,8 @@ app.get('/qr/:id.png', async (req, res) => {
     const png = await QRCode.toBuffer(doc.verificationUrl, {
       width: 720,
       margin: 2,
-      errorCorrectionLevel: 'H'
+      errorCorrectionLevel: 'H',
+      color: { dark: '#082a63', light: '#ffffff' }
     });
     res.type('png').send(png);
   } catch {
@@ -221,7 +358,7 @@ app.get('/files/:id', async (req, res) => {
 });
 
 app.get('/verify/:id', (_req, res) => {
-  res.sendFile(path.join(ROOT, 'public', 'verify.html'));
+  res.sendFile(path.join(PUBLIC_DIR, 'verify.html'));
 });
 
 app.use((err, _req, res, next) => {
