@@ -3,70 +3,95 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f5f7fb">
-  <title>QRsign — Document Verification</title>
+  <meta name="theme-color" content="#082a63">
+  <title>QRsign ARU — Registrasi Dokumen</title>
+  <link rel="icon" href="https://aruraharja.co.id/images/general/logo/aru.png" type="image/png">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="https://aruraharja.co.id/images/general/logo/aru.png" alt="ARU">
+      <div><strong>QRsign</strong><span>Document Authenticity</span></div>
+    </a>
+    <nav>
+      <a class="active" href="/">Registrasi</a>
+      <a href="/check">Cek Dokumen</a>
+    </nav>
+  </header>
+
   <main class="wrap">
-    <section class="hero">
-      <div class="eyebrow">QRSIGN · DOCUMENT AUTHENTICITY</div>
-      <h1>Upload & Verifikasi Dokumen</h1>
-      <p>QR mengarah ke halaman verifikasi. Setelah QR ditempel ke dokumen, upload file final agar SHA-256 yang tersimpan benar-benar mewakili dokumen final.</p>
+    <section class="hero hero-admin">
+      <div class="hero-copy">
+        <div class="eyebrow">ARU DOCUMENT VERIFICATION</div>
+        <h1>Registrasi & kunci keaslian dokumen.</h1>
+        <p>Buat QR verifikasi berlogo ARU, tempelkan pada dokumen, lalu unggah file final. Sistem menyimpan SHA-256 file final sebagai sidik jari digital dokumen.</p>
+        <div class="hero-actions">
+          <a class="button" href="#create">Daftarkan Dokumen</a>
+          <a class="button ghost" href="/check">Cek Dokumen yang Diterima</a>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="seal-card">
+          <img src="https://aruraharja.co.id/images/general/logo/aru.png" alt="ARU">
+          <strong>Authenticity Registry</strong>
+          <span>QR • SHA-256 • Official File</span>
+        </div>
+      </div>
     </section>
 
-    <section class="grid two">
-      <article class="card">
-        <div class="step">1</div>
-        <h2>Buat Record Dokumen</h2>
+    <section class="summary-strip">
+      <div><b>01</b><span>Buat record</span></div><i></i>
+      <div><b>02</b><span>Tempel QR ARU</span></div><i></i>
+      <div><b>03</b><span>Upload file final</span></div><i></i>
+      <div><b>04</b><span>Hash dikunci</span></div>
+    </section>
+
+    <section class="grid two" id="create">
+      <article class="card elevated">
+        <div class="section-head"><div class="step">1</div><div><span class="kicker">REGISTRY</span><h2>Buat record dokumen</h2></div></div>
         <form id="createForm">
-          <label>Admin Key<input type="password" name="adminKey" required autocomplete="current-password"></label>
+          <label>Admin Key<input type="password" name="adminKey" required autocomplete="current-password" placeholder="Masukkan admin key"></label>
           <label>Judul Dokumen<input name="title" required placeholder="Contoh: Company Profile 2026"></label>
-          <label>Nomor Dokumen<input name="documentNumber" placeholder="Opsional"></label>
-          <label>Penerbit / Unit<input name="issuer" placeholder="Contoh: PT ARU Raharja"></label>
-          <label>Deskripsi<textarea name="description" rows="3" placeholder="Opsional"></textarea></label>
-          <button>Buat ID & QR</button>
+          <div class="grid two compact">
+            <label>Nomor Dokumen<input name="documentNumber" placeholder="Opsional"></label>
+            <label>Penerbit / Unit<input name="issuer" placeholder="PT ARU Raharja"></label>
+          </div>
+          <label>Deskripsi<textarea name="description" rows="3" placeholder="Keterangan singkat dokumen"></textarea></label>
+          <button class="wide">Buat Document ID & QR</button>
         </form>
       </article>
 
-      <article class="card" id="recordCard">
-        <div class="step">2</div>
-        <h2>Tempel QR ke Dokumen</h2>
-        <div id="emptyRecord" class="muted-box">Buat record terlebih dahulu. QR, Document ID, dan link verifikasi akan muncul di sini.</div>
+      <article class="card elevated" id="recordCard">
+        <div class="section-head"><div class="step">2</div><div><span class="kicker">BRANDED QR</span><h2>Tempel QR ke dokumen</h2></div></div>
+        <div id="emptyRecord" class="empty-state"><div class="empty-icon">QR</div><strong>QR belum dibuat</strong><span>Setelah record dibuat, QR berlogo ARU dan link verifikasi akan muncul di sini.</span></div>
         <div id="recordResult" hidden>
-          <img id="qrImage" class="qr" alt="QR verifikasi">
+          <div class="qr-frame"><img id="qrImage" class="qr" alt="QR verifikasi ARU"><span>SCAN TO VERIFY</span></div>
           <div class="field"><span>Document ID</span><code id="docId"></code></div>
           <div class="field"><span>Link verifikasi</span><a id="verifyLink" target="_blank" rel="noopener"></a></div>
-          <div class="actions"><a id="downloadQr" class="button ghost" download>Download QR PNG</a></div>
+          <div class="actions"><a id="downloadQr" class="button" download>Download QR SVG</a><a id="openVerify" class="button ghost" target="_blank" rel="noopener">Preview Verifikasi</a></div>
+          <div class="notice neutral">Gunakan QR ini pada dokumen <b>sebelum</b> file final diunggah. Dengan begitu hash benar-benar mewakili versi akhir.</div>
         </div>
       </article>
     </section>
 
-    <section class="card">
-      <div class="step">3</div>
-      <h2>Upload File Final & Kunci Hash</h2>
-      <p class="small">Setelah QR dimasukkan ke slide terakhir / footer dokumen, simpan dokumen final lalu upload di sini. Setelah FINAL, file tidak dapat diganti dari UI ini.</p>
+    <section class="card elevated finalize-card">
+      <div class="section-head"><div class="step">3</div><div><span class="kicker">FINALIZATION</span><h2>Upload file final & kunci SHA-256</h2></div></div>
+      <p class="small lead">File pada tahap ini adalah <b>file resmi</b> dan tetap disimpan agar dapat diunduh dari halaman verifikasi. Ini berbeda dengan halaman “Cek Dokumen”, yang hanya menyimpan file sementara untuk menghitung hash lalu langsung menghapusnya.</p>
       <form id="finalizeForm">
-        <div class="grid two compact">
-          <label>Admin Key<input type="password" name="adminKey" required></label>
-          <label>Document ID<input name="id" id="finalizeId" required placeholder="DOC-20261008-..."></label>
-        </div>
-        <label>File Final<input type="file" name="file" required accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.zip"></label>
-        <button>Finalisasi Dokumen</button>
+        <div class="grid two compact"><label>Admin Key<input type="password" name="adminKey" required placeholder="Admin key"></label><label>Document ID<input name="id" id="finalizeId" required placeholder="DOC-20261008-..."></label></div>
+        <label class="upload-zone">File Final<input type="file" name="file" required accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.zip"><span>PDF, PPT/PPTX, DOC/DOCX, XLS/XLSX, ZIP • maksimum sesuai konfigurasi server</span></label>
+        <button class="wide">Finalisasi & Kunci Hash</button>
       </form>
       <div id="finalResult" class="result" hidden></div>
     </section>
 
-    <section class="card info">
-      <h2>Cara Pakai</h2>
-      <ol>
-        <li>Buat record → sistem memberi Document ID, link verifikasi, dan QR.</li>
-        <li>Masukkan QR ke PPT/PDF/dokumen, misalnya pada slide terakhir bertuliskan “Verify authenticity”.</li>
-        <li>Upload file final → server menghitung SHA-256 dan mengunci record.</li>
-        <li>Saat QR discan, pengguna dapat download file resmi dan menguji file yang mereka punya. Hash sama = file identik bit-per-bit.</li>
-      </ol>
+    <section class="card info-grid">
+      <div><span class="kicker">INTEGRITY</span><h2>Apa yang sebenarnya diverifikasi?</h2><p>QRsign menyimpan SHA-256 dari file final. Jika satu byte saja berubah, hash juga berubah. Karena itu dokumen hasil edit, resave, atau modifikasi tidak akan cocok dengan hash resmi.</p></div>
+      <div class="fact-list"><div><strong>SHA-256</strong><span>Sidik jari digital file final</span></div><div><strong>Official File</strong><span>Versi resmi yang tersimpan</span></div><div><strong>QR ARU</strong><span>Mengarah ke record verifikasi</span></div></div>
     </section>
   </main>
+  <footer>QRsign • PT ARU Raharja • Document authenticity registry</footer>
 <script src="/admin.js"></script>
 </body>
 </html>
