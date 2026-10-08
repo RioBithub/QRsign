@@ -23,6 +23,7 @@ const DATA_FILE = path.join(ROOT, 'data', 'documents.json');
 const UPLOAD_DIR = path.join(ROOT, 'uploads');
 const CHECK_TMP_DIR = path.join(ROOT, 'tmp', 'checks');
 const PUBLIC_DIR = path.join(ROOT, 'public');
+const ARU_LOGO_PATH = path.join(PUBLIC_DIR, 'aru-logo.png');
 
 fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -40,10 +41,7 @@ function safeText(value, max = 300) {
 }
 
 function cleanFileName(name) {
-  return String(name || 'document')
-    .replace(/[^a-zA-Z0-9._ -]/g, '_')
-    .replace(/\s+/g, '_')
-    .slice(0, 140);
+  return String(name || 'document').replace(/[^a-zA-Z0-9._ -]/g, '_').replace(/\s+/g, '_').slice(0, 140);
 }
 
 function makeId() {
@@ -60,9 +58,7 @@ async function readDb() {
     const raw = await fsp.readFile(DATA_FILE, 'utf8');
     const data = JSON.parse(raw || '[]');
     return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 async function writeDb(data) {
@@ -85,19 +81,13 @@ function publicDocument(doc) {
     finalizedAt: doc.finalizedAt || null,
     revokedAt: doc.revokedAt || null,
     revokeReason: doc.revokeReason || null,
-    file: doc.file ? {
-      originalName: doc.file.originalName,
-      mimeType: doc.file.mimeType,
-      size: doc.file.size
-    } : null
+    file: doc.file ? { originalName: doc.file.originalName, mimeType: doc.file.mimeType, size: doc.file.size } : null
   };
 }
 
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'] || req.body?.adminKey;
-  if (!key || key !== ADMIN_KEY) {
-    return res.status(401).json({ ok: false, message: 'Admin key salah.' });
-  }
+  if (!key || key !== ADMIN_KEY) return res.status(401).json({ ok: false, message: 'Admin key salah.' });
   next();
 }
 
@@ -115,12 +105,7 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${crypto.randomBytes(5).toString('hex')}${ext}`);
   }
 });
-
-const upload = multer({
-  storage,
-  limits: { fileSize: MAX_FILE_MB * 1024 * 1024 },
-  fileFilter: documentFileFilter
-});
+const upload = multer({ storage, limits: { fileSize: MAX_FILE_MB * 1024 * 1024 }, fileFilter: documentFileFilter });
 
 const checkStorage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, CHECK_TMP_DIR),
@@ -129,12 +114,7 @@ const checkStorage = multer.diskStorage({
     cb(null, `check-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
   }
 });
-
-const checkUpload = multer({
-  storage: checkStorage,
-  limits: { fileSize: MAX_FILE_MB * 1024 * 1024 },
-  fileFilter: documentFileFilter
-});
+const checkUpload = multer({ storage: checkStorage, limits: { fileSize: MAX_FILE_MB * 1024 * 1024 }, fileFilter: documentFileFilter });
 
 async function sha256File(filePath) {
   return new Promise((resolve, reject) => {
@@ -148,111 +128,63 @@ async function sha256File(filePath) {
 
 async function makeBrandedQrSvg(text) {
   const raw = await QRCode.toString(text, {
-    type: 'svg',
-    margin: 2,
-    errorCorrectionLevel: 'H',
+    type: 'svg', margin: 2, errorCorrectionLevel: 'H',
     color: { dark: '#082a63', light: '#ffffff' }
   });
-
   const match = raw.match(/viewBox="0 0 ([0-9.]+) ([0-9.]+)"/);
   const side = match ? Number(match[1]) : 45;
   const box = side * 0.265;
   const logo = side * 0.205;
   const boxX = (side - box) / 2;
   const boxY = (side - box) / 2;
-  const cx = side / 2;
-  const cy = side / 2;
-  const petal = logo * 0.42;
-  const gap = logo * 0.035;
-  const r = petal * 0.42;
-  const left = cx - gap - petal;
-  const right = cx + gap;
-  const top = cy - gap - petal;
-  const bottom = cy + gap;
+  const logoX = (side - logo) / 2;
+  const logoY = (side - logo) / 2;
+  const logoData = fs.readFileSync(ARU_LOGO_PATH).toString('base64');
+  const logoDataUri = `data:image/png;base64,${logoData}`;
   const overlay = `
     <rect x="${boxX}" y="${boxY}" width="${box}" height="${box}" rx="${side * 0.035}" fill="#ffffff" stroke="#e5e7eb" stroke-width="${side * 0.012}"/>
-    <rect x="${left}" y="${top}" width="${petal}" height="${petal}" rx="${r}" fill="#13c7e8"/>
-    <rect x="${left}" y="${bottom}" width="${petal}" height="${petal}" rx="${r}" fill="#08aee0"/>
-    <rect x="${right}" y="${top}" width="${petal}" height="${petal}" rx="${r}" fill="#082a63"/>
-    <rect x="${right}" y="${bottom}" width="${petal}" height="${petal}" rx="${r}" fill="#0b3b82"/>
+    <image href="${logoDataUri}" x="${logoX}" y="${logoY}" width="${logo}" height="${logo}" preserveAspectRatio="xMidYMid meet"/>
   `;
-
   return raw.replace('</svg>', `${overlay}</svg>`);
 }
 
-app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'QRsign', time: new Date().toISOString() });
-});
-
-app.get('/check', (_req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, 'check.html'));
-});
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'QRsign', time: new Date().toISOString() }));
+app.get('/check', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'check.html')));
 
 app.post('/api/documents', requireAdmin, async (req, res) => {
   const title = safeText(req.body.title, 200);
   if (!title) return res.status(400).json({ ok: false, message: 'Judul dokumen wajib diisi.' });
-
   const docs = await readDb();
-  let id;
-  do { id = makeId(); } while (docs.some(d => d.id === id));
-
+  let id; do { id = makeId(); } while (docs.some(d => d.id === id));
   const now = new Date().toISOString();
   const doc = {
-    id,
-    title,
+    id, title,
     documentNumber: safeText(req.body.documentNumber, 100),
     issuer: safeText(req.body.issuer, 160),
     description: safeText(req.body.description, 500),
     status: 'DRAFT',
     verificationUrl: `${BASE_URL}/verify/${encodeURIComponent(id)}`,
-    file: null,
-    sha256: null,
-    createdAt: now,
-    finalizedAt: null,
-    revokedAt: null,
-    revokeReason: null
+    file: null, sha256: null, createdAt: now, finalizedAt: null, revokedAt: null, revokeReason: null
   };
-
   docs.unshift(doc);
   await writeDb(docs);
-  res.json({
-    ok: true,
-    document: publicDocument(doc),
-    qrUrl: `${BASE_URL}/qr/${encodeURIComponent(id)}.svg`
-  });
+  res.json({ ok: true, document: publicDocument(doc), qrUrl: `${BASE_URL}/qr/${encodeURIComponent(id)}.svg` });
 });
 
 app.post('/api/documents/:id/finalize', requireAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ ok: false, message: 'File final wajib dipilih.' });
-
     const docs = await readDb();
     const idx = docs.findIndex(d => d.id === req.params.id);
-    if (idx < 0) {
-      await fsp.unlink(req.file.path).catch(() => {});
-      return res.status(404).json({ ok: false, message: 'Dokumen tidak ditemukan.' });
-    }
-    if (docs[idx].status === 'FINAL') {
-      await fsp.unlink(req.file.path).catch(() => {});
-      return res.status(409).json({ ok: false, message: 'Dokumen sudah difinalisasi dan dikunci.' });
-    }
-    if (docs[idx].status === 'REVOKED') {
-      await fsp.unlink(req.file.path).catch(() => {});
-      return res.status(409).json({ ok: false, message: 'Dokumen sudah dicabut.' });
-    }
-
+    if (idx < 0) { await fsp.unlink(req.file.path).catch(() => {}); return res.status(404).json({ ok: false, message: 'Dokumen tidak ditemukan.' }); }
+    if (docs[idx].status === 'FINAL') { await fsp.unlink(req.file.path).catch(() => {}); return res.status(409).json({ ok: false, message: 'Dokumen sudah difinalisasi dan dikunci.' }); }
+    if (docs[idx].status === 'REVOKED') { await fsp.unlink(req.file.path).catch(() => {}); return res.status(409).json({ ok: false, message: 'Dokumen sudah dicabut.' }); }
     const hash = await sha256File(req.file.path);
     docs[idx].status = 'FINAL';
     docs[idx].sha256 = hash;
-    docs[idx].file = {
-      storedName: req.file.filename,
-      originalName: cleanFileName(req.file.originalname),
-      mimeType: req.file.mimetype,
-      size: req.file.size
-    };
+    docs[idx].file = { storedName: req.file.filename, originalName: cleanFileName(req.file.originalname), mimeType: req.file.mimetype, size: req.file.size };
     docs[idx].finalizedAt = new Date().toISOString();
     await writeDb(docs);
-
     res.json({ ok: true, document: publicDocument(docs[idx]) });
   } catch (err) {
     if (req.file?.path) await fsp.unlink(req.file.path).catch(() => {});
@@ -264,33 +196,13 @@ app.post('/api/check-file', checkUpload.single('file'), async (req, res) => {
   let tempPath = req.file?.path;
   try {
     if (!req.file) return res.status(400).json({ ok: false, message: 'Pilih dokumen yang ingin dicek.' });
-
-    const uploadedMeta = {
-      name: cleanFileName(req.file.originalname),
-      size: req.file.size,
-      mimeType: req.file.mimetype
-    };
-
+    const uploadedMeta = { name: cleanFileName(req.file.originalname), size: req.file.size, mimeType: req.file.mimetype };
     const hash = await sha256File(tempPath);
-
-    // File pengecekan hanya bersifat sementara. Hapus segera setelah hash selesai dihitung.
     await fsp.unlink(tempPath).catch(() => {});
     tempPath = null;
-
     const docs = await readDb();
-    const matches = docs
-      .filter(d => d.sha256 && String(d.sha256).toLowerCase() === hash.toLowerCase())
-      .map(publicDocument);
-
-    res.json({
-      ok: true,
-      hash,
-      found: matches.length > 0,
-      matchedCount: matches.length,
-      uploadedFile: uploadedMeta,
-      temporaryUploadDeleted: true,
-      documents: matches
-    });
+    const matches = docs.filter(d => d.sha256 && String(d.sha256).toLowerCase() === hash.toLowerCase()).map(publicDocument);
+    res.json({ ok: true, hash, found: matches.length > 0, matchedCount: matches.length, uploadedFile: uploadedMeta, temporaryUploadDeleted: true, documents: matches });
   } catch (err) {
     if (tempPath) await fsp.unlink(tempPath).catch(() => {});
     res.status(500).json({ ok: false, message: err.message || 'Gagal memeriksa dokumen.' });
@@ -325,27 +237,17 @@ app.get('/qr/:id.svg', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('Content-Disposition', `inline; filename="QR-${doc.id}-ARU.svg"`);
     res.send(svg);
-  } catch {
-    res.status(500).send('QR generation failed');
-  }
+  } catch { res.status(500).send('QR generation failed'); }
 });
 
-// Legacy PNG tetap tersedia untuk kompatibilitas, namun UI baru memakai QR SVG berlogo ARU.
 app.get('/qr/:id.png', async (req, res) => {
   const docs = await readDb();
   const doc = docs.find(d => d.id === req.params.id);
   if (!doc) return res.status(404).send('Not found');
   try {
-    const png = await QRCode.toBuffer(doc.verificationUrl, {
-      width: 720,
-      margin: 2,
-      errorCorrectionLevel: 'H',
-      color: { dark: '#082a63', light: '#ffffff' }
-    });
+    const png = await QRCode.toBuffer(doc.verificationUrl, { width: 720, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#082a63', light: '#ffffff' } });
     res.type('png').send(png);
-  } catch {
-    res.status(500).send('QR generation failed');
-  }
+  } catch { res.status(500).send('QR generation failed'); }
 });
 
 app.get('/files/:id', async (req, res) => {
@@ -357,14 +259,10 @@ app.get('/files/:id', async (req, res) => {
   res.download(filePath, doc.file.originalName);
 });
 
-app.get('/verify/:id', (_req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, 'verify.html'));
-});
+app.get('/verify/:id', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'verify.html')));
 
 app.use((err, _req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    return res.status(400).json({ ok: false, message: `Upload gagal: ${err.message}` });
-  }
+  if (err instanceof multer.MulterError) return res.status(400).json({ ok: false, message: `Upload gagal: ${err.message}` });
   if (err) return res.status(400).json({ ok: false, message: err.message || 'Request gagal.' });
   next();
 });
