@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#082a63">
+  <title>QRsign ARU — Cek Dokumen</title>
+  <link rel="icon" href="https://aruraharja.co.id/images/general/logo/aru.png" type="image/png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="https://aruraharja.co.id/images/general/logo/aru.png" alt="ARU">
+      <div><strong>QRsign</strong><span>Document Authenticity</span></div>
+    </a>
+    <nav><a href="/">Registrasi</a><a class="active" href="/check">Cek Dokumen</a></nav>
+  </header>
+
+  <main class="wrap narrow-wide">
+    <section class="hero check-hero">
+      <div class="eyebrow">PUBLIC HASH CHECK</div>
+      <h1>Cek apakah file ini terdaftar di QRsign.</h1>
+      <p>Unggah dokumen yang Anda terima. Server hanya menghitung SHA-256, mencari hash yang sama pada registry, lalu <b>langsung menghapus file pengecekan</b>.</p>
+    </section>
+
+    <section class="grid check-layout">
+      <article class="card elevated checker-card">
+        <div class="section-head"><div class="step">✓</div><div><span class="kicker">CHECK FILE</span><h2>Unggah dokumen untuk dicek</h2></div></div>
+        <form id="checkForm">
+          <label class="upload-zone big-zone">Dokumen yang ingin dicek
+            <input id="checkFile" type="file" name="file" required accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.zip">
+            <span id="fileHint">Pilih file resmi/yang Anda terima. File pengecekan tidak disimpan permanen.</span>
+          </label>
+          <button id="checkButton" class="wide">Hitung Hash & Cari di Registry</button>
+        </form>
+        <div class="privacy-note"><b>Privasi:</b> file temporer dihapus server segera setelah hash selesai dihitung. Hanya nilai hash yang dipakai untuk pencarian.</div>
+      </article>
+
+      <aside class="card side-card">
+        <span class="kicker">HOW IT WORKS</span>
+        <h2>Yang dibandingkan adalah isi file, bukan nama file.</h2>
+        <ol class="timeline">
+          <li><b>Upload sementara</b><span>File masuk ke folder temporary check.</span></li>
+          <li><b>SHA-256 dihitung</b><span>Server menghasilkan fingerprint unik.</span></li>
+          <li><b>File dihapus</b><span>Temporary upload langsung dihapus.</span></li>
+          <li><b>Hash dicari</b><span>Registry documents.json dicocokkan.</span></li>
+        </ol>
+      </aside>
+    </section>
+
+    <section id="checkResult" class="card elevated result-card" hidden></section>
+  </main>
+  <footer>QRsign • PT ARU Raharja • Public document integrity check</footer>
+<script src="/check.js"></script>
+</body>
+</html>
