@@ -15,8 +15,9 @@ $('#createForm').addEventListener('submit', async (e) => {
   delete payload.adminKey;
 
   const btn = e.currentTarget.querySelector('button');
+  const oldText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Membuat…';
+  btn.textContent = 'Membuat record & QR…';
   try {
     const res = await fetch('/api/documents', {
       method: 'POST',
@@ -31,6 +32,8 @@ $('#createForm').addEventListener('submit', async (e) => {
     $('#verifyLink').href = data.document.verificationUrl;
     $('#verifyLink').textContent = data.document.verificationUrl;
     $('#downloadQr').href = data.qrUrl;
+    $('#downloadQr').download = `QR-${data.document.id}-ARU.svg`;
+    $('#openVerify').href = data.document.verificationUrl;
     $('#finalizeId').value = data.document.id;
     document.querySelector('#finalizeForm [name="adminKey"]').value = adminKey;
     $('#recordCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -38,7 +41,7 @@ $('#createForm').addEventListener('submit', async (e) => {
     alert(err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Buat ID & QR';
+    btn.textContent = oldText;
   }
 });
 
@@ -51,8 +54,9 @@ $('#finalizeForm').addEventListener('submit', async (e) => {
   form.delete('adminKey');
 
   const btn = e.currentTarget.querySelector('button');
+  const oldText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Menghitung hash & mengunci…';
+  btn.textContent = 'Menghitung SHA-256 & mengunci…';
   try {
     const res = await fetch(`/api/documents/${encodeURIComponent(id)}/finalize`, {
       method: 'POST',
@@ -60,13 +64,16 @@ $('#finalizeForm').addEventListener('submit', async (e) => {
       body: form
     });
     const data = await parseJson(res);
+    const d = data.document;
     const box = $('#finalResult');
     box.hidden = false;
-    box.innerHTML = `<strong>Berhasil difinalisasi.</strong><br>SHA-256: <code>${data.document.sha256}</code><br><a href="/verify/${encodeURIComponent(id)}" target="_blank">Buka halaman verifikasi</a>`;
+    box.className = 'result success-result';
+    box.innerHTML = `<div class="result-icon">✓</div><div><strong>Dokumen berhasil difinalisasi & dikunci.</strong><p>SHA-256 resmi:</p><code>${d.sha256}</code><div class="actions"><a class="button" href="/verify/${encodeURIComponent(id)}" target="_blank">Buka Halaman Verifikasi</a><a class="button ghost" href="/check">Tes di Hash Checker</a></div></div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (err) {
     alert(err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Finalisasi Dokumen';
+    btn.textContent = oldText;
   }
 });
